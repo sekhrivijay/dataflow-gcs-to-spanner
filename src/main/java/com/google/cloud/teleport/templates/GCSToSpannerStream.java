@@ -166,7 +166,6 @@ public class GCSToSpannerStream {
             .withMaxNumRows(1)
         );
 
-
     return pipeline.run();
   }
 }
