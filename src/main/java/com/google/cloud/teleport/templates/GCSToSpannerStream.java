@@ -143,7 +143,8 @@ public class GCSToSpannerStream {
     pipeline
         .apply("Read Text Data",
             TextIO.read().from(options.getInputFilePattern()).watchForNewFiles(DEFAULT_POLL_INTERVAL,
-                Watch.Growth.never()))
+                Watch.Growth.never())
+                )
         .apply("ParseEntity", ParDo.of(new ParseEntity()))
         .apply("CreateEntityMutation", ParDo.of(new DoFn<df_test_table, Mutation>() {
           @ProcessElement
