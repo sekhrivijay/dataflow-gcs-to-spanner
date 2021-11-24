@@ -151,7 +151,7 @@ public class GCSToSpannerStream {
           public void processElement(ProcessContext c) {
             df_test_table entity = c.element();
             c.output(
-              Mutation.newInsertOrUpdateBuilder("df_test_table").set("STORE_NO").to(entity.STORE_NO)
+              Mutation.newInsertBuilder("df_test_table").set("STORE_NO").to(entity.STORE_NO)
                 .set("COM_CD_y").to(entity.COM_CD_y).set("CON_UPC_NO_Y").to(entity.CON_UPC_NO_Y).set("CAS_UPC_NO")
                 .to(entity.CAS_UPC_NO).set("CAS_DSC_TX").to(entity.CAS_DSC_TX).set("SHF_ALC_QY").to(entity.SHF_ALC_QY)
                 .set("SHF_NO").to(entity.SHF_NO).set("SHF_MIN_QY").to(entity.SHF_MIN_QY).set("AIL_ORN_CD")
