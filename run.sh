@@ -8,7 +8,7 @@ gcloud beta dataflow jobs run ${JOB_NAME} \
 --staging-location ${TEMP_LOCATION} \
 --region=us-central1 \
 --worker-machine-type=n2-standard-8 \
---additional-experiments=enable_streaming_engine,min_num_workers=3,autoscaling_algorithm=THROUGHPUT_BASED \
+--additional-experiments=enable_streaming_engine,min_num_workers=4,autoscaling_algorithm=THROUGHPUT_BASED \
 --parameters inputFilePattern=${INPUT_FILE_PATTERN},instanceId=${SPANNER_INSTANCE_ID},databaseId=${SPANNER_DATABASE_ID},spannerProjectId=${SPANNER_PROJECT_ID}
 
 #--number-of-worker-harness-threads=500 \

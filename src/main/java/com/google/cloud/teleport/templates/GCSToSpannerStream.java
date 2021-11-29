@@ -29,6 +29,7 @@ import org.apache.beam.sdk.io.gcp.spanner.LocalSpannerIO;
 import com.google.cloud.spanner.Mutation;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.Reshuffle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.beam.sdk.io.gcp.spanner.SpannerConfig;
@@ -161,6 +162,7 @@ public class GCSToSpannerStream {
                 );
           }
         }))
+        // .apply("Materialize input", Reshuffle.viaRandomKey())
         // Finally write the Mutations to Spanner
         .apply("WriteEntities", LocalSpannerIO.write()
             .withSpannerConfig(spannerConfig)
