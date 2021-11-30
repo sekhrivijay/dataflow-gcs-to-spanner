@@ -15,7 +15,6 @@
  */
 package com.google.cloud.teleport.templates;
 
-
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.TextIO;
@@ -39,7 +38,6 @@ import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.options.Default;
 
-
 public class GCSToSpannerStream {
   private static final Duration DEFAULT_POLL_INTERVAL = Duration.standardSeconds(10);
 
@@ -48,7 +46,6 @@ public class GCSToSpannerStream {
     run(options);
   }
 
-
   public interface Options extends PipelineOptions {
     @Description("The file pattern to read records from (e.g. gs://bucket/file-*.csv)")
     @Required
@@ -56,35 +53,39 @@ public class GCSToSpannerStream {
 
     void setInputFilePattern(ValueProvider<String> value);
 
-    @Description(
-        "The name of the topic which data should be published to. "
-            + "The name should be in the format of projects/<project-id>/topics/<topic-name>.")
+    @Description("The name of the topic which data should be published to. "
+        + "The name should be in the format of projects/<project-id>/topics/<topic-name>.")
     @Required
     ValueProvider<String> getOutputTopic();
+
     void setOutputTopic(ValueProvider<String> value);
 
     @Description("The name of the spanner instance ID")
     @Required
     ValueProvider<String> getInstanceId();
+
     void setInstanceId(ValueProvider<String> value);
 
     @Description("The name of the spanner database ID")
     @Required
     ValueProvider<String> getDatabaseId();
+
     void setDatabaseId(ValueProvider<String> value);
 
     @Description("Spanner host")
     @Default.String("https://batch-spanner.googleapis.com")
     ValueProvider<String> getSpannerHost();
+
     void setSpannerHost(ValueProvider<String> value);
 
     @Description("The name of the spanner project ID")
     @Required
     ValueProvider<String> getSpannerProjectId();
+
     void setSpannerProjectId(ValueProvider<String> value);
 
-
   }
+
   static class ParseEntity extends DoFn<String, df_test_table> {
     private static final Logger LOG = LoggerFactory.getLogger(ParseEntity.class);
     static final String DELIMITER = ",";
@@ -144,30 +145,30 @@ public class GCSToSpannerStream {
     pipeline
         .apply("Read Text Data",
             TextIO.read().from(options.getInputFilePattern()).watchForNewFiles(DEFAULT_POLL_INTERVAL,
-                Watch.Growth.never())
-                )
+                Watch.Growth.never()))
+        .apply("Materialize input", Reshuffle.viaRandomKey())
         .apply("ParseEntity", ParDo.of(new ParseEntity()))
         .apply("CreateEntityMutation", ParDo.of(new DoFn<df_test_table, Mutation>() {
           @ProcessElement
           public void processElement(ProcessContext c) {
             df_test_table entity = c.element();
             c.output(
-              Mutation.newInsertBuilder("df_test_table").set("STORE_NO").to(entity.STORE_NO)
-                .set("COM_CD_y").to(entity.COM_CD_y).set("CON_UPC_NO_Y").to(entity.CON_UPC_NO_Y).set("CAS_UPC_NO")
-                .to(entity.CAS_UPC_NO).set("CAS_DSC_TX").to(entity.CAS_DSC_TX).set("SHF_ALC_QY").to(entity.SHF_ALC_QY)
-                .set("SHF_NO").to(entity.SHF_NO).set("SHF_MIN_QY").to(entity.SHF_MIN_QY).set("AIL_ORN_CD")
-                .to(entity.AIL_ORN_CD).set("AIL_NO").to(entity.AIL_NO).set("AIL_LOC_CD").to(entity.AIL_LOC_CD).set("t")
-                .to(Value.COMMIT_TIMESTAMP)
-                .build()
-                );
+                Mutation.newInsertBuilder("df_test_table").set("STORE_NO").to(entity.STORE_NO)
+                    .set("COM_CD_y").to(entity.COM_CD_y).set("CON_UPC_NO_Y").to(entity.CON_UPC_NO_Y).set("CAS_UPC_NO")
+                    .to(entity.CAS_UPC_NO).set("CAS_DSC_TX").to(entity.CAS_DSC_TX).set("SHF_ALC_QY")
+                    .to(entity.SHF_ALC_QY)
+                    .set("SHF_NO").to(entity.SHF_NO).set("SHF_MIN_QY").to(entity.SHF_MIN_QY).set("AIL_ORN_CD")
+                    .to(entity.AIL_ORN_CD).set("AIL_NO").to(entity.AIL_NO).set("AIL_LOC_CD").to(entity.AIL_LOC_CD)
+                    .set("t")
+                    .to(Value.COMMIT_TIMESTAMP)
+                    .build());
           }
         }))
-        // .apply("Materialize input", Reshuffle.viaRandomKey())
+
         // Finally write the Mutations to Spanner
         .apply("WriteEntities", LocalSpannerIO.write()
             .withSpannerConfig(spannerConfig)
-            .withMaxNumRows(1)
-        );
+            .withMaxNumRows(1));
 
     return pipeline.run();
   }

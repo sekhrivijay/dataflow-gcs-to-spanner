@@ -1,5 +1,6 @@
 import argparse
 import logging
+import apache_beam as beam
 from google.cloud import spanner
 from apache_beam.io.gcp.experimental import spannerio
 from apache_beam import DoFn, io, ParDo, Pipeline
@@ -56,6 +57,7 @@ if __name__ == '__main__':
         (
             pipeline
             | "Read from GCS" >> io.ReadFromText(known_args.input_file_pattern, skip_header_lines=1)
+            | 'Reshuffle' >> beam.Reshuffle()
             | 'ParseEntity' >> ParDo(ParseEntity())
             | 'WriteToSpanner' >> spannerio.WriteToSpanner(project_id=known_args.spanner_project_id, instance_id=known_args.spanner_instance_id, database_id=known_args.spanner_database_id, max_number_rows=1)
         )
