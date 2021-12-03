@@ -11,8 +11,13 @@ import org.apache.beam.sdk.options.StreamingOptions;
 import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.io.jdbc.JdbcIO;
+import org.apache.beam.sdk.io.jdbc.JdbcIO.DefaultRetryStrategy;
+import org.apache.beam.sdk.io.jdbc.JdbcIO.RetryConfiguration;
+
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import org.joda.time.Duration;
+
 import org.apache.beam.sdk.options.Default;
 
 import org.apache.beam.sdk.transforms.DoFn;
@@ -82,8 +87,9 @@ public class PubSubToPostgres {
                                 .create(options.getDatabaseDriver(), options.getDatabaseUrl())
                                 .withUsername(options.getUserName())
                                 .withPassword(options.getPassword())
-
                         )
+                        .withRetryStrategy(new DefaultRetryStrategy())
+                        .withRetryConfiguration(RetryConfiguration.create(5, null, Duration.standardSeconds(5)))
                         .withStatement("insert into Person values(?, ?)")
                         .withPreparedStatementSetter(new JdbcIO.PreparedStatementSetter<String[]>() {
                             public void setParameters(String[] elements, PreparedStatement query)
