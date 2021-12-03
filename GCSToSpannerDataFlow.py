@@ -61,3 +61,4 @@ if __name__ == '__main__':
             | 'ParseEntity' >> ParDo(ParseEntity())
             | 'WriteToSpanner' >> spannerio.WriteToSpanner(project_id=known_args.spanner_project_id, instance_id=known_args.spanner_instance_id, database_id=known_args.spanner_database_id, max_number_rows=1)
         )
+
