@@ -1,9 +1,13 @@
 package com.google.cloud.teleport.templates;
 
-import org.apache.avro.Schema;
+
+import org.apache.avro.file.DataFileStream;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.coders.AvroCoder;
+import org.apache.beam.sdk.coders.DefaultCoder;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -12,22 +16,25 @@ import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.io.jdbc.JdbcIO;
 import org.apache.beam.sdk.io.jdbc.JdbcIO.DefaultRetryStrategy;
 import org.apache.beam.sdk.io.jdbc.JdbcIO.RetryConfiguration;
-import java.io.IOException;
+
+import java.io.ByteArrayInputStream;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import org.joda.time.Duration;
 import org.apache.beam.sdk.options.Default;
+import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.DatumReader;
+import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.Reshuffle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
-
 public class PubSubToPostgresV2 {
     private static final Logger LOG = LoggerFactory.getLogger(PubSubToPostgresV2.class);
 
-    // public interface Options extends StreamingOptions {
+
     public interface Options extends PubsubOptions {
         @Description("The Cloud Pub/Sub subscription to consume from. " + "The name should be in the format of "
                 + "projects/<project-id>/subscriptions/<subscription-name>.")
@@ -70,23 +77,24 @@ public class PubSubToPostgresV2 {
     }
 
     public static PipelineResult run(Options options) {
-        // Schema avroSchema = null;
-        // try {
-        //     avroSchema = new Schema.Parser().parse(
-        //             PubSubToPostgresV2.class.getClassLoader()
-        //                     // .getResourceAsStream("schema/avro/pubsub.avsc"));
-        //                     .getResourceAsStream("schema/avro/rcs.avsc"));
-        // } catch (IOException e) {
-        //     e.printStackTrace();
-        // }
+    //    Schema avroSchema = null;
+    //     try {
+    //         avroSchema = new Schema.Parser().parse(
+    //                 PubSubToPostgresV2.class.getClassLoader()
+    //                         // .getResourceAsStream("schema/avro/pubsub.avsc"));
+    //                         .getResourceAsStream("schema/avro/rcs.avsc"));
+    //     } catch (IOException e) {
+    //         e.printStackTrace();
+    //     }
         // Create the pipeline
         Pipeline pipeline = Pipeline.create(options);
         pipeline.apply("Read PubSub Events",
-                PubsubIO.readAvrosWithBeamSchema(example.class).fromSubscription(options.getInputSubscription()))
+                PubsubIO.readMessages().fromSubscription(options.getInputSubscription()))
+                //  PubsubIO.readAvroGenericRecords(avroSchema).fromSubscription(options.getInputSubscription()))
 
-
+                .apply("ParseEntity", ParDo.of(new ParseEntity()))
                 // Finally write to postgres
-                .apply("Write to Postgresql", JdbcIO.<example>write()
+                .apply("Write to Postgresql", JdbcIO.<Example>write()
                         .withDataSourceConfiguration(JdbcIO.DataSourceConfiguration
                                 .create(options.getDatabaseDriver(), options.getDatabaseUrl())
                                 .withUsername(options.getUserName())
@@ -94,8 +102,8 @@ public class PubSubToPostgresV2 {
                         .withRetryStrategy(new DefaultRetryStrategy())
                         .withRetryConfiguration(RetryConfiguration.create(5, null, Duration.standardSeconds(5)))
                         .withStatement("insert into Person values(?, ?)")
-                        .withPreparedStatementSetter(new JdbcIO.PreparedStatementSetter<example>() {
-                            public void setParameters(example elements, PreparedStatement query)
+                        .withPreparedStatementSetter(new JdbcIO.PreparedStatementSetter<Example>() {
+                            public void setParameters(Example elements, PreparedStatement query)
                                     throws SQLException {
                                 query.setLong(1, elements.uuid);
                                 query.setString(2, elements.CommitTimestamp);
@@ -106,11 +114,33 @@ public class PubSubToPostgresV2 {
         return pipeline.run();
     }
 
-    public static class example {
+    @DefaultCoder(AvroCoder.class)
+    public static class Example {
         public long uuid;
         public String CommitTimestamp;
     }
-    
 
-   
+    static class ParseEntity extends DoFn<PubsubMessage, Example> {
+        private static final Logger LOG = LoggerFactory.getLogger(ParseEntity.class);
+            
+        @ProcessElement
+        public void processElement(ProcessContext c) {
+            DatumReader<GenericRecord> datumReader = new GenericDatumReader<GenericRecord>();
+            try {
+                DataFileStream<GenericRecord> dataFileReader  = new DataFileStream<GenericRecord>(new ByteArrayInputStream(c.element().getPayload()), datumReader);
+                while (dataFileReader.hasNext()) {
+                    GenericRecord avroRec = dataFileReader.next();
+			        LOG.info("avroRec " + avroRec);
+                    Example ex = new Example();
+                    ex.uuid = (Long)avroRec.get("uuid");
+                    ex.CommitTimestamp = String.valueOf(avroRec.get("CommitTimestamp"));
+                    c.output(ex);
+                }
+            } catch (Exception  e) {
+                LOG.info("ParseSinger: parse error on '" + c.element() + "': " + e.getMessage());
+                LOG.error("Some parse error", e);
+            }
+        }
+
+    }
 }
