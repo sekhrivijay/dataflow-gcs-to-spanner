@@ -1,6 +1,6 @@
 mvn clean
 mvn compile exec:java \
--Dexec.mainClass=com.google.cloud.teleport.templates.PubSubToPostgres \
+-Dexec.mainClass=com.google.cloud.teleport.templates.PubSubToPostgresV2 \
 -Dexec.cleanupDaemonThreads=false \
 -Dexec.args=" \
 --project=${PROJECT} \

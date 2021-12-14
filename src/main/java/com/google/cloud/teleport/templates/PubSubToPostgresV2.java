@@ -1,33 +1,29 @@
 package com.google.cloud.teleport.templates;
 
+import org.apache.avro.Schema;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions;
 import org.apache.beam.sdk.options.Description;
-
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-
 import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.io.jdbc.JdbcIO;
 import org.apache.beam.sdk.io.jdbc.JdbcIO.DefaultRetryStrategy;
 import org.apache.beam.sdk.io.jdbc.JdbcIO.RetryConfiguration;
-
+import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import org.joda.time.Duration;
-
 import org.apache.beam.sdk.options.Default;
-
-import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.transforms.Reshuffle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PubSubToPostgres {
-    private static final Logger LOG = LoggerFactory.getLogger(PubSubToPostgres.class);
+public class PubSubToPostgresV2 {
+    private static final Logger LOG = LoggerFactory.getLogger(PubSubToPostgresV2.class);
 
     // public interface Options extends StreamingOptions {
     public interface Options extends PubsubOptions {
@@ -72,20 +68,21 @@ public class PubSubToPostgres {
     }
 
     public static PipelineResult run(Options options) {
+        Schema avroSchema = null;
+        try {
+            avroSchema = new Schema.Parser().parse(
+                    PubSubToPostgresV2.class.getClassLoader()
+                            .getResourceAsStream("schema/avro/pubsub.avsc"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         // Create the pipeline
         Pipeline pipeline = Pipeline.create(options);
-
-        pipeline.apply("Read PubSub Events", PubsubIO.readStrings().fromSubscription(options.getInputSubscription()))
-                .apply("Materialize input", Reshuffle.viaRandomKey())
-                .apply("Split into tokens", ParDo.of(new DoFn<String, String[]>() {
-                    @ProcessElement
-                    public void processElement(ProcessContext c) {
-                        c.output(c.element().split(","));
-                    }
-                }))
-
+        pipeline.apply("Read PubSub Events",
+                PubsubIO.readAvroGenericRecords(avroSchema).fromSubscription(options.getInputSubscription()))
+                // .apply("Materialize input", Reshuffle.viaRandomKey())
                 // Finally write to postgres
-                .apply("Write to Postgresql", JdbcIO.<String[]>write()
+                .apply("Write to Postgresql", JdbcIO.<GenericRecord>write()
                         .withDataSourceConfiguration(JdbcIO.DataSourceConfiguration
                                 .create(options.getDatabaseDriver(), options.getDatabaseUrl())
                                 .withUsername(options.getUserName())
@@ -93,11 +90,11 @@ public class PubSubToPostgres {
                         .withRetryStrategy(new DefaultRetryStrategy())
                         .withRetryConfiguration(RetryConfiguration.create(5, null, Duration.standardSeconds(5)))
                         .withStatement("insert into Person values(?, ?)")
-                        .withPreparedStatementSetter(new JdbcIO.PreparedStatementSetter<String[]>() {
-                            public void setParameters(String[] elements, PreparedStatement query)
+                        .withPreparedStatementSetter(new JdbcIO.PreparedStatementSetter<GenericRecord>() {
+                            public void setParameters(GenericRecord elements, PreparedStatement query)
                                     throws SQLException {
-                                query.setInt(1, Integer.parseInt(elements[0]));
-                                query.setString(2, elements[1]);
+                                query.setLong(1, (Long)(elements.get("key1")));
+                                query.setString(2, String.valueOf(elements.get("key2")));
                             }
                         }));
 

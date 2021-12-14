@@ -25,6 +25,10 @@ import com.google.cloud.spanner.Value;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.DefaultCoder;
 import org.apache.beam.sdk.io.gcp.spanner.LocalSpannerIO;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.spanner.Mutation;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -93,6 +97,8 @@ public class GCSToSpannerStream {
     @ProcessElement
     public void processElement(ProcessContext c) {
       String[] columns = c.element().split(DELIMITER);
+
+      LOG.info("This is a test " + c.element());
       try {
         df_test_table entity = new df_test_table();
         entity.STORE_NO = Long.parseLong(columns[0].trim());
@@ -110,6 +116,7 @@ public class GCSToSpannerStream {
         c.output(entity);
       } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
         LOG.info("ParseSinger: parse error on '" + c.element() + "': " + e.getMessage());
+        LOG.error("Some parse error", e);
       }
     }
   }
@@ -141,6 +148,21 @@ public class GCSToSpannerStream {
     SpannerConfig spannerConfig = SpannerConfig.create().withHost(options.getSpannerHost())
         .withProjectId(options.getSpannerProjectId()).withInstanceId(options.getInstanceId())
         .withDatabaseId(options.getDatabaseId());
+
+    
+    // The ID of your GCP project
+    String projectId = "your-project-id";
+      
+    // The ID of your GCS bucket
+    String bucketName = "your-unique-bucket-name";
+      
+    // The ID of your GCS object
+    String objectName = "your-object-name";
+
+      
+    Storage storage = StorageOptions.newBuilder().setProjectId(projectId).build().getService();
+    Blob blob = storage.get(BlobId.of(bucketName, objectName));
+    String fileContents =  new String(blob.getContent());
 
     pipeline
         .apply("Read Text Data",

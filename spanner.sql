@@ -12,3 +12,6 @@ CREATE TABLE df_test_table (
 	AIL_LOC_CD STRING(MAX),
 	t TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
 ) PRIMARY KEY (AIL_LOC_CD);
+
+
+CREATE TABLE Person (myid integer PRIMARY KEY,name varchar(500)) ;

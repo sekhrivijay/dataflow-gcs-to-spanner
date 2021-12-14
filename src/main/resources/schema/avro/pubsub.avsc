@@ -1,0 +1,9 @@
+{
+    "name" : "PostgresRow",
+    "type" : "record",
+    "namespace" : "com.google.cloud.teleport.postgres",
+    "fields" : [
+      { "name" : "key1", "type" : "long"},
+      { "name" : "key2", "type" : "string"}
+   ]
+}
