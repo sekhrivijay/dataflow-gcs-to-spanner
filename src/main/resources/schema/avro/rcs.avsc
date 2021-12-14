@@ -1,0 +1,8 @@
+{
+    "type":"record","name":"example",
+    "namespace":"avroNamespace",
+    "fields":[
+            {"name":"uuid","type":["null","long"],"default":null},
+            {"name":"CommitTimestamp","type":["null","string"],"default":null}
+    ]
+}

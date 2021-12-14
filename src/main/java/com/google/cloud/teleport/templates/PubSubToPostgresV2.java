@@ -22,6 +22,8 @@ import org.apache.beam.sdk.transforms.Reshuffle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
+
 public class PubSubToPostgresV2 {
     private static final Logger LOG = LoggerFactory.getLogger(PubSubToPostgresV2.class);
 
@@ -68,21 +70,23 @@ public class PubSubToPostgresV2 {
     }
 
     public static PipelineResult run(Options options) {
-        Schema avroSchema = null;
-        try {
-            avroSchema = new Schema.Parser().parse(
-                    PubSubToPostgresV2.class.getClassLoader()
-                            .getResourceAsStream("schema/avro/pubsub.avsc"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        // Schema avroSchema = null;
+        // try {
+        //     avroSchema = new Schema.Parser().parse(
+        //             PubSubToPostgresV2.class.getClassLoader()
+        //                     // .getResourceAsStream("schema/avro/pubsub.avsc"));
+        //                     .getResourceAsStream("schema/avro/rcs.avsc"));
+        // } catch (IOException e) {
+        //     e.printStackTrace();
+        // }
         // Create the pipeline
         Pipeline pipeline = Pipeline.create(options);
         pipeline.apply("Read PubSub Events",
-                PubsubIO.readAvroGenericRecords(avroSchema).fromSubscription(options.getInputSubscription()))
-                // .apply("Materialize input", Reshuffle.viaRandomKey())
+                PubsubIO.readAvrosWithBeamSchema(example.class).fromSubscription(options.getInputSubscription()))
+
+
                 // Finally write to postgres
-                .apply("Write to Postgresql", JdbcIO.<GenericRecord>write()
+                .apply("Write to Postgresql", JdbcIO.<example>write()
                         .withDataSourceConfiguration(JdbcIO.DataSourceConfiguration
                                 .create(options.getDatabaseDriver(), options.getDatabaseUrl())
                                 .withUsername(options.getUserName())
@@ -90,11 +94,11 @@ public class PubSubToPostgresV2 {
                         .withRetryStrategy(new DefaultRetryStrategy())
                         .withRetryConfiguration(RetryConfiguration.create(5, null, Duration.standardSeconds(5)))
                         .withStatement("insert into Person values(?, ?)")
-                        .withPreparedStatementSetter(new JdbcIO.PreparedStatementSetter<GenericRecord>() {
-                            public void setParameters(GenericRecord elements, PreparedStatement query)
+                        .withPreparedStatementSetter(new JdbcIO.PreparedStatementSetter<example>() {
+                            public void setParameters(example elements, PreparedStatement query)
                                     throws SQLException {
-                                query.setLong(1, (Long)(elements.get("key1")));
-                                query.setString(2, String.valueOf(elements.get("key2")));
+                                query.setLong(1, elements.uuid);
+                                query.setString(2, elements.CommitTimestamp);
                             }
                         }));
 
@@ -102,4 +106,11 @@ public class PubSubToPostgresV2 {
         return pipeline.run();
     }
 
+    public static class example {
+        public long uuid;
+        public String CommitTimestamp;
+    }
+    
+
+   
 }
